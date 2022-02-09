@@ -1,0 +1,13 @@
+[project]
+version = '0.1.0'
+description = 'Reducing Network Agnostophobia'
+
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "agnostophobia"
+author = "Someone Else"
+author-email = "someone@github.com"
+

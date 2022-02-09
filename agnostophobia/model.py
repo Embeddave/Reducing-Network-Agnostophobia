@@ -12,14 +12,13 @@ from keras import backend as K
 import numpy as np
 
 
-def LeNet_plus_plus(perform_L2_norm=False, activation_type='softmax', ring_approach=False, background_class=False,
+def LeNet_plus_plus(perform_L2_norm=False, activation_type='softmax', background_class=False,
                     knownsMinimumMag=None):
     """
     Defines the network architecture for LeNet++.
     Use the options for different approaches:
     background_class: Classification with additional class for negative classes
-    ring_approach: ObjectoSphere Loss applied if True
-    knownsMinimumMag: Minimum Magnitude allowed for samples belonging to one of the Known Classes if ring_approach is True
+    knownsMinimumMag: Minimum Magnitude allowed for samples belonging to one of the Known Classes
     """
     mnist_image = Input(shape=(28, 28, 1), dtype='float32', name='mnist_image')
 
@@ -62,15 +61,14 @@ def LeNet_plus_plus(perform_L2_norm=False, activation_type='softmax', ring_appro
     return model
 
 
-def LeNet(activation_type='softmax', ring_approach=False, background_class=False, knownsMinimumMag=None):
+def LeNet(activation_type='softmax', background_class=False, knownsMinimumMag=None):
     """
     Defines the network architecture for LeNet.
     Use the options for different approaches:
     background_class: Classification with additional class for negative classes
     ring_approach: ObjectoSphere Loss applied if True
-    knownsMinimumMag: Minimum Magnitude allowed for samples belonging to one of the Known Classes if ring_approach is True
+    knownsMinimumMag: Minimum Magnitude allowed for samples belonging to one of the Known Classes
     """
-
     mnist_image = Input(shape=(28, 28, 1), dtype='float32', name='mnist_image')
 
     conv1 = Conv2D(20, (5, 5), padding="same", name='conv1')(mnist_image)
@@ -132,7 +130,8 @@ def concatenate_training_data(obj, y, cross_entropy_probs, ring_loss=False):
         X_train_data: Numpy array containing training samples
         Y_train_data: Numpy array containing Label values
         sample_weights: 1D Numpy array containing weight of each sample
-        Y_train_flags: Returned only when ring_loss=True. Numpy array containing flags indicating the sample is a known versus known unknown
+        Y_train_flags: Returned only when ring_loss=True.
+        Numpy array containing flags indicating the sample is a known versus known unknown
     """
     X_train_data = np.concatenate((obj.X_train, y))
     Y_train_data = np.concatenate((obj.Y_train, np.ones((y.shape[0], 10)) * cross_entropy_probs))

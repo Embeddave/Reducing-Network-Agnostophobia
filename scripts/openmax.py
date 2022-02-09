@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, '../Tools')
+sys.path.insert(0, '../agnostophobia')
 import evaluation_tools as tools
 import pandas as pd
 import EVM

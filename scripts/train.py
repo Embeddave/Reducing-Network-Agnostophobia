@@ -13,12 +13,11 @@ import data_prep
 
 
 def main(args):
-    GPU_NO = str(args.gpu)
-
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    config.gpu_options.visible_device_list = GPU_NO
-    tf.compat.v1.keras.backend.set_session(tf.Session(config=config))
+    config = tf.compat.v1.ConfigProto()
+    if hasattr(args, 'gpu'):
+        config.gpu_options.visible_device_list = str(args.gpu)
+        config.gpu_options.allow_growth = True
+    tf.compat.v1.keras.backend.set_session(tf.compat.v1.Session(config=config))
 
     mnist = data_prep.mnist_data_prep()
     letters = data_prep.letters_prep()
@@ -35,15 +34,17 @@ def main(args):
     weights_file = weights_file + '/Random_Models/model_' + str(args.random_model) + '.h5py'
 
     if args.solver == 'adam':
-        adam = Adam(lr=args.lr)
+        adam = Adam(learning_rate=args.lr)
     else:
-        adam = SGD(lr=args.lr)
+        adam = SGD(learning_rate=args.lr)
 
-    if args.Vanilla:
+    if args.training == 'Vanilla':
         model_saver = ModelCheckpoint(
             results_dir + 'Vanilla_' + str(args.random_model) + '.h5py', monitor='val_loss', verbose=0,
             save_best_only=True,
-            save_weights_only=False, mode='min', period=1
+            save_weights_only=False,
+            mode='min',
+            save_freq=200
         )
         callbacks_list = [model_saver]
 
@@ -54,13 +55,13 @@ def main(args):
         vanilla_lenet_pp.load_weights(weights_file)
         vanilla_lenet_pp.compile(optimizer=adam, loss={'softmax': 'categorical_crossentropy'}, metrics=['accuracy'])
         info = vanilla_lenet_pp.fit(
-            x=[mnist.X_train],
-            y=[mnist.Y_train],
+            x=mnist.X_train,
+            y=mnist.Y_train,
             validation_data=[mnist.X_val, mnist.Y_val],
             batch_size=args.Batch_Size, epochs=args.no_of_epochs, verbose=1, callbacks=callbacks_list
         )
 
-    elif args.BG:
+    elif args.training == 'BG':
         model_saver = ModelCheckpoint(results_dir + 'BG_' + str(args.random_model) + '.h5py', monitor='val_loss',
                                       verbose=0, save_best_only=True, save_weights_only=False, mode='min', period=1)
         callbacks_list = [model_saver]
@@ -93,14 +94,14 @@ def main(args):
 
         bg_model.compile(optimizer=adam, loss={'softmax': 'categorical_crossentropy'}, metrics=['categorical_accuracy'])
         info = bg_model.fit(
-            x=[X_train],
-            y=[Y_train],
+            x=X_train,
+            y=Y_train,
             validation_data=[mnist.X_val, np.append(mnist.Y_val, np.zeros((mnist.Y_val.shape[0], 1)), 1)],
             batch_size=args.Batch_Size, epochs=args.no_of_epochs, verbose=1, callbacks=callbacks_list,
             sample_weight=sample_weights
         )
 
-    elif args.cross:
+    elif args.training == 'cross':
         X_train, Y_train, sample_weights = agnostophobia.model.concatenate_training_data(mnist, letters.X_train, 0.1)
         model_saver = ModelCheckpoint(results_dir + 'Cross_' + str(args.random_model) + '.h5py', monitor='val_loss',
                                       verbose=0, save_best_only=True, save_weights_only=False, mode='min', period=1)
@@ -115,18 +116,23 @@ def main(args):
         negative_training_lenet_pp.compile(optimizer=adam, loss={'softmax': 'categorical_crossentropy'},
                                            metrics=['accuracy'])
         info = negative_training_lenet_pp.fit(
-            x=[X_train],
-            y=[Y_train],
+            x=X_train,
+            y=Y_train,
             validation_data=[mnist.X_val, mnist.Y_val],
             batch_size=args.Batch_Size, epochs=args.no_of_epochs, verbose=1,
             callbacks=callbacks_list, sample_weight=sample_weights
         )
 
-    elif args.use_ring_loss:
+    elif args.training == 'ring-loss':
 
-        X_train, Y_train, sample_weights, Y_pred_with_flags = agnostophobia.model.concatenate_training_data(mnist,
-                                                                                                    letters.X_train,
-                                                                                                    0.1, ring_loss=True)
+        (X_train,
+         Y_train,
+         sample_weights,
+         Y_pred_with_flags) = agnostophobia.model.concatenate_training_data(mnist,
+                                                                            letters.X_train,
+                                                                            0.1,
+                                                                            ring_loss=True
+                                                                            )
         knownsMinimumMag = Input((1,), dtype='float32', name='knownsMinimumMag')
         knownsMinimumMag_ = np.ones((X_train.shape[0])) * args.Minimum_Knowns_Magnitude
 
@@ -145,9 +151,9 @@ def main(args):
             return error
 
         if args.use_lenet:
-            Ring_Loss_Lenet_pp = agnostophobia.model.LeNet(ring_approach=True, knownsMinimumMag=knownsMinimumMag)
+            Ring_Loss_Lenet_pp = agnostophobia.model.LeNet(knownsMinimumMag=knownsMinimumMag)
         else:
-            Ring_Loss_Lenet_pp = agnostophobia.model.LeNet_plus_plus(ring_approach=True, knownsMinimumMag=knownsMinimumMag)
+            Ring_Loss_Lenet_pp = agnostophobia.model.LeNet_plus_plus(knownsMinimumMag=knownsMinimumMag)
 
         model_saver = ModelCheckpoint(
             results_dir + 'Ring_' + str(args.Minimum_Knowns_Magnitude) + '_' + str(args.random_model) + '.h5py',
@@ -176,7 +182,7 @@ def main(args):
             callbacks=callbacks_list
         )
 
-    else:
+    elif args.training == 'save-random-weights':
         if args.use_lenet:
             model = agnostophobia.model.LeNet()
         else:
@@ -191,30 +197,31 @@ def get_parser():
                                                 Where applicable roman letters are used as Known Unknowns. \
                                                 During training model with best performance on validation set in the no_of_epochs is used.'
     )
-    parser.add_argument('--gpu', help='GPU No', required=True, type=int)
+    parser.add_argument('training',
+                        choices={'Vanilla', 'BG', 'cross', 'ring-loss', 'save-random-weights'},
+                        help=r"""
+                        training, string that specifies how network is trained.
+                        Choices are {'Vanilla', 'BG', 'cross', 'ring_loss'}.
+
+                        Vanilla : Network with only softmax loss. No training on Known Unknowns.
+                        BG: Network trained with Known Unknowns as Background class.
+                        cross: Network trained with Entropic Openset loss.
+                        ring_loss: Network trained with Objectosphere loss.
+                        """,
+                        )
+    parser.add_argument('--gpu', help='GPU No', type=int)
     parser.add_argument('--random_model',
                         help=('Set of Random Weights to use. '
                               'In order to create a new set of random weights '
                               'append the choices and use that choice with the desired architecture. '
                               'Note: In that case don\'t define any other options.'),
                         dest="random_model", type=int, choices=[0, 1, 2, 3, 4], default=0)
-
-    parser.add_argument("--Vanilla", help="Network with only softmax loss. No training on Known Unknowns.",
-                        dest="Vanilla", action="store_true", default=False)
-    parser.add_argument("--BG", help="Network trained with Known Unknowns as Background class.", dest="BG",
-                        action="store_true", default=False)
-    parser.add_argument("--cross", help="Network trained with Entropic Openset loss.", dest="cross",
-                        action="store_true", default=False)
-
-    parser.add_argument("--use_ring_loss", help="Network trained with Objectosphere loss.", dest="use_ring_loss",
-                        action="store_true", default=False)
     parser.add_argument('--cross_entropy_loss_weight', help='Loss weight for Entropic Openset loss', type=float,
                         default=1.)
     parser.add_argument('--ring_loss_weight', help='Loss weight for Objectosphere loss', type=float, default=0.0001)
     parser.add_argument('--Minimum_Knowns_Magnitude', help='Minimum Possible Magnitude for the Knowns', type=float,
                         default=50.)
-
-    parser.add_argument("--use_lenet", dest="use_lenet", action="store_true", default=False)
+    parser.add_argument("--use_lenet", dest="use_lenet", action="store_true")
     parser.add_argument("--solver", action="store", dest="solver", default='adam')
     parser.add_argument("--lr", action="store", dest="lr", default=0.01, type=float)
 
